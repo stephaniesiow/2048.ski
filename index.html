@@ -40,9 +40,7 @@
     width: 100%;
     height: 100%;
     overflow: hidden;
-    background: #7ab8e0;
-    border: none;
-    outline: none;
+    background-color: #7ab8e0;
   }
 
   body {
@@ -59,10 +57,10 @@
   #bg {
     position: fixed;
     top: 0; left: 0;
-    right: 0; bottom: 0;
+    width: 100%; height: 100%;
     background: url('background.png') center center / cover no-repeat;
     background-color: #7ab8e0;
-    z-index: 0;
+    z-index: 0;  /* above html bg, below snow and game */
   }
 
   /* Outer centering shell — also fixed to fill the true viewport */
@@ -1376,17 +1374,16 @@ function scaleGame() {
   const wrap = document.getElementById('game-wrap');
   if (!wrap) return;
 
+  // Reset so we can measure the natural (unscaled) size
   wrap.style.transform = 'none';
 
-  // Use visualViewport on iOS Safari — it reflects the *visible* area
-  // excluding the browser toolbar, giving the correct usable height
-  const vp  = window.visualViewport || window;
-  const vw  = vp.width  || window.innerWidth;
-  const vh  = vp.height || window.innerHeight;
+  const vw  = window.innerWidth;
+  const vh  = window.innerHeight;
   const ww  = wrap.offsetWidth;
   const wh  = wrap.offsetHeight;
 
-  const margin = 16;
+  // Fit within viewport with a small margin on each side
+  const margin = 24;
   const scaleX = Math.min(1, (vw - margin) / ww);
   const scaleY = Math.min(1, (vh - margin) / wh);
   const scale  = Math.min(scaleX, scaleY);
@@ -1394,14 +1391,9 @@ function scaleGame() {
   wrap.style.transform = `scale(${scale})`;
 }
 
-// Re-scale when the visual viewport changes (iOS toolbar show/hide)
-if (window.visualViewport) {
-  window.visualViewport.addEventListener('resize', scaleGame);
-} else {
-  window.addEventListener('resize', scaleGame);
-}
-window.addEventListener('load', scaleGame);
-setTimeout(scaleGame, 150);
+window.addEventListener('resize', scaleGame);
+window.addEventListener('load',   scaleGame);
+setTimeout(scaleGame, 150); // wait for fonts/images
 
 </script>
 </body>
