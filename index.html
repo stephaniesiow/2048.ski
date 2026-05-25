@@ -1,0 +1,1376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Skis & Scores 2048</title>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  /* =============================================
+     CSS CUSTOM PROPERTIES (theme variables)
+     ============================================= */
+  :root {
+    --sky-light: #cce4f5;
+    --sky-mid:   #a8d4ef;
+    --sky-dark:  #7dbce8;
+    --wood-dark: #7a5c3a;
+    --wood-mid:  #9c7248;
+    --snow-white:#f0f8ff;
+    --tile-empty:#d6eaf8;
+    --score-bg:  rgba(120,80,40,0.85);
+    --radius:    18px;
+    --shadow:    0 6px 20px rgba(0,0,0,0.18);
+  }
+
+  /* =============================================
+     RESET & BASE
+     ============================================= */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Lexend', sans-serif;
+    background: url('background.png') center center / cover fixed;
+    width: 100vw;
+    height: 100dvh;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  /* When scaled down, the transform collapses visual size but not
+     layout size — this wrapper absorbs that so body stays centered */
+  #scale-outer {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100vw;
+    height: 100dvh;
+    overflow: hidden;
+    position: fixed;
+    top: 0; left: 0;
+  }
+
+  /* =============================================
+     GAME WRAP
+     All content lives here. JS scales this div
+     down when the viewport is too small to fit.
+     ============================================= */
+  #game-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 16px 10px;
+    transform-origin: center center;
+    width: 440px;
+    flex-shrink: 0;
+    position: relative;  /* overlays are absolute children */
+  }
+
+  /* =============================================
+     TITLE IMAGE
+     ============================================= */
+  .title-img {
+    max-width: 360px;
+    width: 85%;
+    height: auto;
+    display: block;
+    margin-bottom: 14px;
+    /* drop shadow so it reads on any background */
+    filter: drop-shadow(0 4px 12px rgba(0,0,0,0.2));
+  }
+
+  /* =============================================
+     SCORE BAR  (frosted glass pills)
+     ============================================= */
+  .score-bar {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 14px;
+    align-items: center;
+  }
+  .score-box {
+    text-align: center;
+    width: 150px;
+    min-width: 150px;
+    max-width: 150px;
+    flex-shrink: 0;
+    background: rgba(255,255,255,0.22);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1.5px solid rgba(255,255,255,0.45);
+    border-radius: 16px;
+    padding: 10px 0;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.1);
+  }
+  .score-label {
+    font-size: 10px;
+    font-weight: 800;
+    color: rgba(255,255,255,0.75);
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+  }
+  .score-value {
+    font-family: 'Lexend', sans-serif;
+    font-size: clamp(18px, 4vw, 26px);
+    font-weight: 700;
+    color: #fff;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.2);
+    line-height: 1.1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* =============================================
+     BOARD FRAME — transparent, no padding
+     The board.png image provides its own border.
+     ============================================= */
+  .board-frame {
+    background: none;
+    border-radius: 0;
+    padding: 0;
+    box-shadow: none;
+    max-width: 420px;
+    width: 100%;
+  }
+
+  /* The actual 4×4 grid — frosted glass panel */
+  #board {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    background: rgba(255, 255, 255, 0.18);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-radius: 24px;
+    border: 1.5px solid rgba(255, 255, 255, 0.45);
+    padding: 14px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.6);
+    touch-action: none;
+    position: relative;
+  }
+  /* cells sit naturally above board background */
+  .cell { z-index: 1; }
+
+  /* =============================================
+     EMPTY CELL
+     ============================================= */
+  .cell {
+    aspect-ratio: 1;
+    border-radius: 14px;
+    background: transparent;      /* no square fill behind tiles */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+  }
+  /* Dot shown only when the cell is empty (no .tile child) */
+  .cell:not(:has(.tile))::after {
+    content: '•';
+    font-size: clamp(22px, 5vw, 32px);
+    color: rgba(255,255,255,0.5);
+    line-height: 1;
+  }
+
+  /* =============================================
+     TILE  (the actual numbered tile inside a cell)
+     ============================================= */
+  .tile {
+    position: absolute;
+    inset: 0;
+    border-radius: 14px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    /* pop-in animation when spawned */
+    animation: pop-in 0.18s cubic-bezier(0.34,1.56,0.64,1) both;
+    overflow: hidden;
+    cursor: default;
+    /* stronger drop shadow lifts tile off the board */
+    box-shadow: inset 0 2px 0 rgba(255,255,255,0.5), inset 0 -2px 0 rgba(0,0,0,0.1), 0 6px 16px rgba(0,0,0,0.45), 0 2px 4px rgba(0,0,0,0.3);
+  }
+
+  /* Tile that just merged gets a brief "merged" glow */
+  .tile.merged {
+    animation: merge-pop 0.25s cubic-bezier(0.34,1.56,0.64,1) both;
+  }
+
+  @keyframes pop-in {
+    0%   { transform: scale(0); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  @keyframes merge-pop {
+    0%   { transform: scale(1); }
+    40%  { transform: scale(1.18); }
+    100% { transform: scale(1); }
+  }
+
+  /*
+   * TILE IMAGE
+   * Fills the whole tile cell; border-radius clips the corners cleanly.
+   * object-fit: cover ensures no letterboxing even if your crops are
+   * slightly non-square.
+   */
+  .tile-img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 14px;
+    display: block;
+  }
+
+  /* Number label — centered behind the image, small and subtle.
+     z-index: 0 puts it under the tile-img so the image sits on top. */
+  .tile-num {
+    position: absolute;
+    z-index: 0;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-family: 'Lexend', sans-serif;
+    font-size: clamp(10px, 2.2vw, 14px);
+    line-height: 1;
+    color: rgba(255,255,255,0.4);
+    text-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    letter-spacing: 0.5px;
+    pointer-events: none;
+  }
+
+  /* =============================================
+     TILE COLOR THEMES
+     Background is transparent — the tile image covers the whole cell.
+     Special glow effects kept for 2048 and 16384 milestone tiles.
+     ============================================= */
+  .tile-2, .tile-4, .tile-8, .tile-16,
+  .tile-32, .tile-64, .tile-128, .tile-256,
+  .tile-512, .tile-1024, .tile-4096, .tile-8192 { background: none; box-shadow: 0 3px 8px rgba(0,0,0,0.2); }
+  .tile-2048  { background: none; box-shadow: 0 0 18px rgba(255,210,50,0.7), 0 3px 8px rgba(0,0,0,0.2); }
+  .tile-16384 { background: none; box-shadow: 0 0 22px rgba(140,200,255,0.7), 0 3px 8px rgba(0,0,0,0.2); }
+
+  /* =============================================
+     BUTTONS
+     ============================================= */
+  .btn {
+    background: rgba(255,255,255,0.22);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1.5px solid rgba(255,255,255,0.45);
+    border-radius: 14px;
+    padding: 8px 16px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
+    font-family: 'Lexend', sans-serif;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+    transition: transform 0.1s, box-shadow 0.1s, background 0.1s;
+    white-space: nowrap;
+  }
+  .btn:hover  { transform: translateY(-2px); background: rgba(255,255,255,0.32); box-shadow: 0 6px 16px rgba(0,0,0,0.18); }
+  .btn:active { transform: translateY(1px);  box-shadow: 0 2px 6px rgba(0,0,0,0.12); }
+  /* Danger variant — used for destructive confirm actions */
+  .btn-danger {
+    background: rgba(220,80,80,0.5);
+    border-color: rgba(255,160,160,0.5);
+  }
+  .btn-danger:hover { background: rgba(220,80,80,0.7); }
+  /* Success variant — highlight action */
+  .btn-success {
+    background: rgba(60,180,100,0.55);
+    border-color: rgba(140,240,160,0.5);
+  }
+  .btn-success:hover { background: rgba(60,180,100,0.75); }
+  /* New game button sits inline with score */
+  .new-game-btn { margin-left: auto; font-size: 18px; font-weight: 400; padding: 0 16px; align-self: stretch; border-radius: 16px; }
+
+  /* =============================================
+     GAME-OVER OVERLAY
+     ============================================= */
+  #overlay, #confirm-overlay, #win-overlay {
+    display: none;
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(20,50,100,0.6);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    border-radius: 24px;  /* match board-frame rounding */
+  }
+  #overlay.show, #confirm-overlay.show, #win-overlay.show { display: flex; }
+  .overlay-box {
+    background: rgba(60,100,160,0.85);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1.5px solid rgba(255,255,255,0.4);
+    border-radius: 24px;
+    padding: 28px 32px;
+    text-align: center;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.3);
+    width: 300px;
+  }
+  .overlay-box h2 {
+    font-family: 'Lexend', sans-serif;
+    font-size: 28px;
+    font-weight: 700;
+    color: #fff;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    margin-bottom: 8px;
+  }
+  .overlay-box p { font-size: 14px; color: rgba(255,255,255,0.8); margin-bottom: 20px; }
+  .overlay-box .btn { font-size: 14px; padding: 10px 20px; flex: 1; }
+  /* button row always side by side */
+  .overlay-btn-row { display: flex; gap: 10px; justify-content: center; width: 100%; }
+
+  /* =============================================
+     HOW-TO HINT
+     ============================================= */
+  .hint {
+    margin-top: 12px;
+    font-size: 12px;
+    color: rgba(255,255,255,0.55);
+    text-align: center;
+    letter-spacing: 0.3px;
+  }
+
+  /* =============================================
+     POWERUP BAR
+     ============================================= */
+  .powerup-bar {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+    justify-content: center;
+    width: auto;                /* shrink-wrap to content */
+  }
+  .powerup-btn {
+    width: 80px;               /* fixed equal width */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    background: rgba(255,255,255,0.22);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1.5px solid rgba(255,255,255,0.45);
+    border-radius: 14px;
+    padding: 8px 6px 6px;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    transition: transform 0.1s, box-shadow 0.1s, background 0.1s, opacity 0.2s;
+    position: relative;
+    overflow: visible;
+  }
+  .powerup-btn:hover:not(:disabled)  { transform: translateY(-2px); background: rgba(255,255,255,0.32); box-shadow: 0 6px 16px rgba(0,0,0,0.15); }
+  .powerup-btn:active:not(:disabled) { transform: translateY(1px);  box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+  .powerup-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* Active / selected state — white/silver glow to match selection style */
+  .powerup-btn.active {
+    background: rgba(255,255,255,0.4);
+    border-color: rgba(255,255,255,0.9);
+    box-shadow: 0 0 16px rgba(255,255,255,0.4), 0 4px 12px rgba(0,0,0,0.15);
+    transform: translateY(-2px);
+  }
+
+  .powerup-name  { font-family: 'Lexend', sans-serif; font-size: 11px; font-weight: 700; color: rgba(255,255,255,0.9); letter-spacing: 0.5px; text-transform: uppercase; line-height: 1.2; }
+  .powerup-uses  { font-family: 'Lexend', sans-serif; font-size: 16px; font-weight: 800; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,0.3); line-height: 1; }
+
+  /* Lock badge — shown when uses = 0 and not yet unlocked */
+  .powerup-lock {
+    position: absolute;
+    top: 4px; right: 4px;
+    font-size: 10px;
+    background: rgba(0,0,0,0.35);
+    border-radius: 6px;
+    padding: 1px 4px;
+    color: #fff;
+    font-family: 'Lexend', sans-serif;
+    font-weight: 800;
+    line-height: 1.4;
+    white-space: nowrap;
+  }
+
+  /* Unlock toast — appears near the top, half the original size */
+  .unlock-toast {
+    position: fixed;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-20px);
+    background: linear-gradient(160deg, #fff8e0, #ffe080);
+    border-radius: 12px;
+    padding: 8px 14px;
+    font-family: 'Lexend', sans-serif;
+    font-size: 11px;
+    color: var(--wood-dark);
+    box-shadow: 0 4px 14px rgba(0,0,0,0.22);
+    z-index: 200;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s, transform 0.25s;
+    text-align: center;
+    white-space: nowrap;
+  }
+  .unlock-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* Highlight cells during swap / delete selection */
+  .cell.selectable { cursor: pointer; }
+  .cell.selectable::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 14px;
+    border: 3px solid rgba(255,255,255,0.9);
+    box-shadow: inset 0 0 10px rgba(255,255,255,0.35), 0 0 8px rgba(255,255,255,0.3);
+    z-index: 10;
+    pointer-events: none;
+    animation: pulse-border 0.8s ease-in-out infinite alternate;
+  }
+  .cell.selected::before {
+    border-color: rgba(200,220,255,0.95);
+    box-shadow: inset 0 0 14px rgba(200,220,255,0.5), 0 0 12px rgba(200,220,255,0.5);
+  }
+  @keyframes pulse-border {
+    from { opacity: 0.6; }
+    to   { opacity: 1;   }
+  }
+
+  /* =============================================
+     SNOW CANVAS — sits behind everything
+     ============================================= */
+  #snow-canvas {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 0;
+  }
+  /* Push all page content above the snow canvas */
+  body > *:not(#snow-canvas) { position: relative; z-index: 1; }
+</style>
+</head>
+<body>
+
+<!-- Snow particle canvas -->
+<canvas id="snow-canvas"></canvas>
+
+<div id="scale-outer"><div id="game-wrap">
+<!-- Title image -->
+<img src="title.png" alt="Bunbun's Big Mountain" class="title-img">
+
+<!-- Score bar with new-game button -->
+<div class="score-bar">
+  <div class="score-box">
+    <div class="score-label">Score</div>
+    <div class="score-value" id="score">0</div>
+  </div>
+  <div class="score-box">
+    <div class="score-label">Best</div>
+    <div class="score-value" id="best">0</div>
+  </div>
+  <button class="btn new-game-btn" onclick="confirmNewGame()" title="New game">↺</button>
+</div>
+
+<!-- Board surrounded by wooden frame -->
+<div class="board-frame" style="position:relative;">
+
+<!-- Overlays — positioned over the board only -->
+<div id="confirm-overlay">
+  <div class="overlay-box">
+    <h2>Start over?</h2>
+    <p>Your current game will be lost.</p>
+    <div class="overlay-btn-row">
+      <button class="btn" onclick="hideConfirm()">Cancel</button>
+      <button class="btn btn-danger" onclick="newGame(); hideConfirm()">New Game</button>
+    </div>
+  </div>
+</div>
+
+<div id="overlay">
+  <div class="overlay-box">
+    <h2 id="overlay-title">Game Over!</h2>
+    <p  id="overlay-msg">No more moves. Try again?</p>
+    <div class="overlay-btn-row">
+      <button class="btn" id="overlay-undo-btn" onclick="activateUndo()" style="display:none;">↩ Undo</button>
+      <button class="btn" onclick="hideOverlay(); confirmNewGame()">New Game</button>
+    </div>
+  </div>
+</div>
+
+<div id="win-overlay">
+  <div class="overlay-box">
+    <h2>🎉 2048!</h2>
+    <p>You're all set to go skiing!</p>
+    <div class="overlay-btn-row">
+      <button class="btn" onclick="hideWinOverlay(); confirmNewGame()">New Game</button>
+      <button class="btn btn-success" onclick="hideWinOverlay()">Keep Skiing! ⛷️</button>
+    </div>
+  </div>
+</div>
+  <div id="board">
+    <!-- 16 empty cells are generated by JS below -->
+  </div>
+</div>
+
+<!-- Powerup bar (undo + swap + delete) -->
+<div class="powerup-bar">
+  <button class="powerup-btn" id="btn-undo"   onclick="activateUndo()"            disabled title="Unlock by reaching 128 tile">
+    <span class="powerup-name">Undo</span>
+    <span class="powerup-uses" id="uses-undo">0</span>
+    <span class="powerup-lock" id="lock-undo">128 tile</span>
+  </button>
+  <button class="powerup-btn" id="btn-swap"   onclick="activatePowerup('swap')"   disabled title="Unlock by reaching 256 tile">
+    <span class="powerup-name">Swap</span>
+    <span class="powerup-uses" id="uses-swap">0</span>
+    <span class="powerup-lock" id="lock-swap">256 tile</span>
+  </button>
+  <button class="powerup-btn" id="btn-delete" onclick="activatePowerup('delete')" disabled title="Unlock by reaching 512 tile">
+    <span class="powerup-name">Delete</span>
+    <span class="powerup-uses" id="uses-delete">0</span>
+    <span class="powerup-lock" id="lock-delete">512 tile</span>
+  </button>
+</div>
+
+<!-- Unlock toast notification -->
+<div class="unlock-toast" id="unlock-toast"></div>
+
+<p class="hint">Arrow keys / WASD · Swipe on mobile</p>
+
+</div><!-- /#game-wrap --></div><!-- /#scale-outer -->
+
+<script>
+/* =============================================
+   TILE DEFINITIONS
+   -----------------------------------------------
+   Each tile value maps to an image filename.
+   Put your cropped tile images in the SAME folder
+   as this HTML file, named exactly as listed below
+   (e.g. tile-2.png, tile-4.png … tile-16384.png).
+
+   The images should be square crops of each tile
+   from the Alpine Adventure tileset sheet.
+   The number label is drawn on top in CSS so you
+   don't need to include the number in the image —
+   but if your tiles already have numbers baked in
+   you can set showLabel: false per tile.
+   ============================================= */
+const TILE_DATA = {
+  2:     { img: 'tile-2.png'     },
+  4:     { img: 'tile-4.png'     },
+  8:     { img: 'tile-8.png'     },
+  16:    { img: 'tile-16.png'    },
+  32:    { img: 'tile-32.png'    },
+  64:    { img: 'tile-64.png'    },
+  128:   { img: 'tile-128.png'   },
+  256:   { img: 'tile-256.png'   },
+  512:   { img: 'tile-512.png'   },
+  1024:  { img: 'tile-1024.png'  },
+  2048:  { img: 'tile-2048.png'  },
+  4096:  { img: 'tile-4096.png'  },
+  8192:  { img: 'tile-8192.png'  },
+  16384: { img: 'tile-16384.png' },
+};
+
+/* =============================================
+   GAME STATE
+   ============================================= */
+const SIZE = 4;                  // 4×4 grid
+let grid      = [];              // current 4×4 array of values (0 = empty)
+let score     = 0;               // current score
+let bestScore = 0;               // all-time best (stored in localStorage)
+let undoStack = [];              // stack of {grid, score} snapshots (max 2)
+let undoUses  = 0;               // how many undo charges the player has
+let won       = false;           // whether 2048 has been reached this game
+let gameOver  = false;
+
+/* =============================================
+   POWERUP STATE
+   - uses: how many charges remain for each powerup
+   - unlocked: whether the player has ever earned this powerup
+   - activeMode: which powerup is currently waiting for tile clicks
+     null | 'swap' | 'delete'
+   - swapFirst: the [r,c] of the first tile selected during a swap
+   Unlock thresholds mirror play2048.co:
+     swap   → unlocked when player first merges to 256
+     delete → unlocked when player first merges to 512
+   Each unlock grants 3 uses (generous for a ski resort theme 🎿).
+   ============================================= */
+let powerups = {
+  swap:   { uses: 0, unlocked: false },
+  delete: { uses: 0, unlocked: false },
+};
+let activeMode = null;    // currently active powerup mode
+let swapFirst  = null;    // first tile chosen during swap
+
+/* =============================================
+   DOM REFERENCES
+   ============================================= */
+const boardEl  = document.getElementById('board');
+const scoreEl  = document.getElementById('score');
+const bestEl   = document.getElementById('best');
+const overlay  = document.getElementById('overlay');
+const oTitle   = document.getElementById('overlay-title');
+const oMsg     = document.getElementById('overlay-msg');
+const toastEl  = document.getElementById('unlock-toast');
+
+/* =============================================
+   INIT & NEW GAME
+   ============================================= */
+function init() {
+  // Restore best score from localStorage if available
+  bestScore = parseInt(localStorage.getItem('alpine2048best') || '0');
+  bestEl.textContent = bestScore;
+
+  // Build 16 empty cell divs into the board
+  boardEl.innerHTML = '';
+  for (let i = 0; i < SIZE * SIZE; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'cell';
+    cell.id = `cell-${i}`;
+    boardEl.appendChild(cell);
+  }
+
+  newGame();
+}
+
+function newGame() {
+  // Reset state
+  grid      = Array.from({length: SIZE}, () => Array(SIZE).fill(0));
+  score     = 0;
+  won       = false;
+  gameOver  = false;
+  activeMode = null;
+  swapFirst  = null;
+  undoStack  = [];
+  undoUses   = 0;
+  powerups   = { swap: { uses: 0, unlocked: false }, delete: { uses: 0, unlocked: false } };
+
+  scoreEl.textContent = '0';
+  cancelPowerupMode();
+  updatePowerupUI();
+  updateUndoUI();
+
+  // Spawn two starting tiles
+  spawnTile();
+  spawnTile();
+  render();
+}
+
+/* =============================================
+   TILE SPAWNING
+   Randomly places a 2 (90%) or 4 (10%) on an empty cell
+   ============================================= */
+function spawnTile() {
+  const empty = [];
+  for (let r = 0; r < SIZE; r++)
+    for (let c = 0; c < SIZE; c++)
+      if (grid[r][c] === 0) empty.push([r, c]);
+
+  if (empty.length === 0) return false;
+
+  const [r, c] = empty[Math.floor(Math.random() * empty.length)];
+  grid[r][c] = Math.random() < 0.9 ? 2 : 4;
+
+  // Mark cell for spawn animation
+  markCell(r, c, 'spawn');
+  return true;
+}
+
+/* =============================================
+   RENDER
+   Rebuilds the tile HTML inside each cell based on grid[][]
+   ============================================= */
+// We track which cells just merged for animation purposes
+let mergedCells = new Set();
+let spawnedCells = new Set();
+
+function markCell(r, c, type) {
+  if (type === 'merge') mergedCells.add(r * SIZE + c);
+  if (type === 'spawn') spawnedCells.add(r * SIZE + c);
+}
+
+function render() {
+  for (let r = 0; r < SIZE; r++) {
+    for (let c = 0; c < SIZE; c++) {
+      const idx  = r * SIZE + c;
+      const cell = document.getElementById(`cell-${idx}`);
+      const val  = grid[r][c];
+
+      if (val === 0) {
+        // Empty cell: clear any tile inside
+        cell.innerHTML = '';
+        continue;
+      }
+
+      // Build tile element
+      // Falls back to a plain numbered tile if the image file isn't found yet
+      const data   = TILE_DATA[val] || { img: null };
+      const tile   = document.createElement('div');
+      const valKey = Math.min(val, 16384); // cap CSS class at 16384
+      tile.className = `tile tile-${valKey}`;
+
+      // Spawn or merge animation
+      if (spawnedCells.has(idx)) tile.style.animation = 'pop-in 0.18s cubic-bezier(0.34,1.56,0.64,1) both';
+      if (mergedCells.has(idx))  tile.classList.add('merged');
+
+      if (data.img) {
+        /*
+         * IMAGE MODE
+         * The tile image fills the entire cell.
+         * We overlay the number in the bottom-left corner so it's
+         * always readable — matching the style from the tileset sheet.
+         * If your tile images already have the number baked in and you
+         * don't want it doubled up, just delete the <span> line below.
+         */
+        tile.innerHTML = `
+          <img
+            src="${data.img}"
+            alt="${val}"
+            class="tile-img"
+            onerror="this.style.display='none'"
+          >
+        `;
+      } else {
+        /* FALLBACK: no image file — show a plain numbered tile */
+        tile.innerHTML = ''; /* image missing — tile shows as blank */
+      }
+
+      cell.innerHTML = '';
+      cell.appendChild(tile);
+    }
+  }
+
+  // Clear animation flags for next frame
+  mergedCells.clear();
+  spawnedCells.clear();
+
+  // Update score display
+  scoreEl.textContent = score;
+  if (score > bestScore) {
+    bestScore = score;
+    bestEl.textContent = bestScore;
+    localStorage.setItem('alpine2048best', bestScore);
+  }
+}
+
+/* =============================================
+   MOVEMENT LOGIC
+   Core 2048 slide-and-merge for one row (left direction).
+   We rotate the grid to handle all four directions.
+   ============================================= */
+
+/** Slide a single row leftward; returns [newRow, pointsEarned, mergedValues] */
+function slideRow(row) {
+  // Remove zeros (pack tiles left)
+  let tiles = row.filter(v => v !== 0);
+  let points = 0;
+  let mergedValues = [];
+
+  // Merge adjacent equal tiles
+  for (let i = 0; i < tiles.length - 1; i++) {
+    if (tiles[i] === tiles[i + 1]) {
+      tiles[i] *= 2;
+      points += tiles[i];
+      mergedValues.push(tiles[i]); // record the new merged value
+      tiles.splice(i + 1, 1);
+    }
+  }
+
+  // Pad with zeros on the right
+  while (tiles.length < SIZE) tiles.push(0);
+
+  return [tiles, points, mergedValues];
+}
+
+/**
+ * Rotate the entire grid 90° clockwise.
+ * We use this trick so "slide left" implements all four directions:
+ *   LEFT  = 0 rotations
+ *   DOWN  = 1 rotation
+ *   RIGHT = 2 rotations
+ *   UP    = 3 rotations
+ */
+function rotateGrid(g) {
+  const n = g.length;
+  const r = Array.from({length: n}, () => Array(n).fill(0));
+  for (let row = 0; row < n; row++)
+    for (let col = 0; col < n; col++)
+      r[col][n - 1 - row] = g[row][col];
+  return r;
+}
+
+/** Deep copy a 2D grid */
+function copyGrid(g) { return g.map(row => [...row]); }
+
+/** Compare two grids for equality */
+function gridsEqual(a, b) {
+  for (let r = 0; r < SIZE; r++)
+    for (let c = 0; c < SIZE; c++)
+      if (a[r][c] !== b[r][c]) return false;
+  return true;
+}
+
+/**
+ * Perform a move in one of four directions.
+ * direction: 0=left, 1=down, 2=right, 3=up
+ */
+function move(direction) {
+  if (gameOver) return;
+
+  // Push current state onto undo stack (keep max 2 snapshots)
+  undoStack.push({ grid: copyGrid(grid), score });
+  if (undoStack.length > 2) undoStack.shift();
+
+  // Rotate grid so we always slide "left"
+  let g = copyGrid(grid);
+  for (let i = 0; i < direction; i++) g = rotateGrid(g);
+
+  let moved  = false;
+  let earned = 0;
+  const newMerged = [];
+  const allMergedValues = []; // values produced by merges this move
+
+  // Slide each row
+  for (let r = 0; r < SIZE; r++) {
+    const [newRow, pts, mergedVals] = slideRow(g[r]);
+    // Detect which cells had merges (value changed to non-zero after double)
+    for (let c = 0; c < SIZE; c++) {
+      if (newRow[c] !== 0 && newRow[c] !== g[r][c]) {
+        newMerged.push([r, c]); // in rotated coords
+      }
+    }
+    if (newRow.join() !== g[r].join()) moved = true;
+    g[r] = newRow;
+    earned += pts;
+    allMergedValues.push(...mergedVals);
+  }
+
+  if (!moved) return; // nothing happened, don't spawn
+
+  // Rotate back to original orientation
+  const rotationsBack = (4 - direction) % 4;
+  for (let i = 0; i < rotationsBack; i++) g = rotateGrid(g);
+
+  // Mark merged cells in original coords
+  // (We re-identify them by comparing old vs new grid for doubled values)
+  mergedCells.clear();
+  for (let r = 0; r < SIZE; r++)
+    for (let c = 0; c < SIZE; c++)
+      if (g[r][c] !== 0 && g[r][c] !== grid[r][c] && g[r][c] === grid[r][c] * 2)
+        mergedCells.add(r * SIZE + c);
+
+  grid   = g;
+  score += earned;
+
+  // Check powerup unlocks based on what was merged this move
+  checkPowerupUnlocks(allMergedValues);
+
+  // Check for 2048 win (show message once)
+  if (!won && grid.flat().includes(2048)) {
+    won = true;
+    setTimeout(() => showWinOverlay(), 300);
+  }
+
+  // Spawn a new tile
+  spawnTile();
+  render();
+  updateUndoUI();
+
+  // Check for game over
+  if (!canMove()) {
+    gameOver = true;
+    setTimeout(() => {
+      showOverlay('Game Over ❄️', `Final score: ${score}`, true);
+      // Show undo button in overlay only if player has uses left
+      const undoBtn = document.getElementById('overlay-undo-btn');
+      if (undoBtn) undoBtn.style.display = undoUses > 0 ? '' : 'none';
+    }, 300);
+  }
+}
+
+/** Returns true if any valid move exists */
+function canMove() {
+  // Any empty cell?
+  for (let r = 0; r < SIZE; r++)
+    for (let c = 0; c < SIZE; c++)
+      if (grid[r][c] === 0) return true;
+
+  // Any adjacent equal tiles?
+  for (let r = 0; r < SIZE; r++)
+    for (let c = 0; c < SIZE; c++) {
+      if (c < SIZE-1 && grid[r][c] === grid[r][c+1]) return true;
+      if (r < SIZE-1 && grid[r][c] === grid[r+1][c]) return true;
+    }
+
+  return false;
+}
+
+/* =============================================
+   UNDO
+   Uses are earned by reaching milestone tiles:
+     128 tile → +1 undo use
+     256 tile → +1 undo use  (stacks, max 2 stored)
+   Max 2 snapshots kept in undoStack.
+   ============================================= */
+function activateUndo() {
+  // If a powerup mode is active, cancel it first
+  if (activeMode) { cancelPowerupMode(); return; }
+  if (undoUses <= 0 || undoStack.length === 0) return;
+
+  const snap = undoStack.pop();
+  grid     = snap.grid;
+  score    = snap.score;
+  undoUses--;
+  gameOver = false;
+  hideOverlay();   // dismiss game-over overlay if showing
+  render();
+  updateUndoUI();
+}
+
+/* Update the undo button label to show remaining uses */
+function updateUndoUI() {
+  const btn = document.getElementById('btn-undo');
+  if (!btn) return;
+  btn.disabled = (undoUses === 0);
+  const usesEl = document.getElementById('uses-undo');
+  if (usesEl) usesEl.textContent = undoUses;
+  const lockEl = document.getElementById('lock-undo');
+  if (lockEl) lockEl.style.display = (undoUses > 0 || powerups.swap.unlocked) ? 'none' : '';
+}
+
+/* =============================================
+   POWERUP: UNLOCK CHECKS
+   Called after every move. Grants uses the first
+   time the player reaches the threshold tile.
+   ============================================= */
+/*
+ * checkPowerupUnlocks(mergedValues)
+ * Called after every move with the list of values that were
+ * produced by merges this turn (e.g. [128, 32]).
+ * Rules:
+ *   Every 128 merged → +1 undo   (if stored undos < 2)
+ *   Every 256 merged → +1 swap   (if stored swaps < 2)
+ *   Every 512 merged → +1 delete (if stored deletes < 2)
+ * Multiple merges of the same value in one move each trigger
+ * their own check independently.
+ */
+function checkPowerupUnlocks(mergedValues) {
+  let undoChanged = false, puiChanged = false;
+
+  for (const val of mergedValues) {
+    if (val === 128) {
+      if (undoUses < 2) {
+        undoUses++;
+        showUnlockToast('↩ Undo +1 (' + undoUses + '/2)');
+        undoChanged = true;
+      }
+    }
+    if (val === 256) {
+      if (powerups.swap.uses < 2) {
+        powerups.swap.uses++;
+        powerups.swap.unlocked = true;
+        showUnlockToast('🔄 Swap +1 (' + powerups.swap.uses + '/2)');
+        puiChanged = true;
+      }
+    }
+    if (val === 512) {
+      if (powerups.delete.uses < 2) {
+        powerups.delete.uses++;
+        powerups.delete.unlocked = true;
+        showUnlockToast('🗑️ Delete +1 (' + powerups.delete.uses + '/2)');
+        puiChanged = true;
+      }
+    }
+  }
+
+  if (undoChanged) updateUndoUI();
+  if (puiChanged)  updatePowerupUI();
+}
+
+/* =============================================
+   POWERUP: UI UPDATE
+   Syncs button states / use counts / lock badges
+   ============================================= */
+function updatePowerupUI() {
+  ['swap', 'delete'].forEach(id => {
+    const btn   = document.getElementById('btn-' + id);
+    const usesEl= document.getElementById('uses-' + id);
+    const lockEl= document.getElementById('lock-' + id);
+    const p     = powerups[id];
+
+    usesEl.textContent = p.uses;
+    btn.disabled = (p.uses === 0);
+    lockEl.style.display = p.unlocked ? 'none' : '';
+
+    // Highlight if this is the active mode
+    btn.classList.toggle('active', activeMode === id);
+  });
+}
+
+/* =============================================
+   POWERUP: ACTIVATE
+   Toggles a powerup mode on/off. When active,
+   the next tile click(s) carry out the action.
+   ============================================= */
+function activatePowerup(id) {
+  if (gameOver) return;
+  if (powerups[id].uses === 0) return;
+
+  if (activeMode === id) {
+    // Clicking the active button again cancels it
+    cancelPowerupMode();
+    return;
+  }
+
+  activeMode = id;
+  swapFirst  = null;
+  highlightSelectableCells();
+  updatePowerupUI();
+}
+
+/* =============================================
+   POWERUP: CANCEL MODE
+   ============================================= */
+function cancelPowerupMode() {
+  activeMode = null;
+  swapFirst  = null;
+  // Remove all selection highlights
+  document.querySelectorAll('.cell').forEach(el => {
+    el.classList.remove('selectable', 'selected');
+    el.onclick = null;
+  });
+  updatePowerupUI();
+}
+
+/* =============================================
+   POWERUP: HIGHLIGHT CELLS
+   Makes non-empty cells clickable while a
+   powerup mode is active.
+   ============================================= */
+function highlightSelectableCells() {
+  for (let r = 0; r < SIZE; r++) {
+    for (let c = 0; c < SIZE; c++) {
+      const idx  = r * SIZE + c;
+      const cell = document.getElementById('cell-' + idx);
+      if (grid[r][c] !== 0) {
+        cell.classList.add('selectable');
+        cell.onclick = () => handlePowerupClick(r, c);
+      }
+    }
+  }
+}
+
+/* =============================================
+   POWERUP: HANDLE CELL CLICK
+   ============================================= */
+function handlePowerupClick(r, c) {
+  if (!activeMode) return;
+
+  if (activeMode === 'delete') {
+    // ── DELETE: remove all tiles of this value ──
+    const targetVal = grid[r][c];
+    for (let rr = 0; rr < SIZE; rr++)
+      for (let cc = 0; cc < SIZE; cc++)
+        if (grid[rr][cc] === targetVal) grid[rr][cc] = 0;
+
+    powerups.delete.uses--;
+    cancelPowerupMode();
+    spawnTile();   // reward a fresh tile after clearing
+    render();
+
+  } else if (activeMode === 'swap') {
+    // ── SWAP: pick two tiles and exchange them ──
+    const idx  = r * SIZE + c;
+    const cell = document.getElementById('cell-' + idx);
+
+    if (!swapFirst) {
+      // First tile selected
+      swapFirst = [r, c];
+      // Mark this cell as "selected" (orange border)
+      document.querySelectorAll('.cell.selectable').forEach(el => el.classList.remove('selected'));
+      cell.classList.add('selected');
+    } else {
+      const [r1, c1] = swapFirst;
+      if (r1 === r && c1 === c) {
+        // Tapped the same tile — deselect
+        cell.classList.remove('selected');
+        swapFirst = null;
+        return;
+      }
+      // Perform the swap
+      const tmp      = grid[r1][c1];
+      grid[r1][c1]   = grid[r][c];
+      grid[r][c]     = tmp;
+
+      powerups.swap.uses--;
+      cancelPowerupMode();
+      render();
+    }
+  }
+}
+
+/* =============================================
+   UNLOCK TOAST
+   ============================================= */
+let toastTimer = null;
+function showUnlockToast(msg) {
+  toastEl.textContent = msg;
+  toastEl.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2200);
+}
+
+/* =============================================
+   OVERLAY HELPERS
+   ============================================= */
+function showOverlay(title, msg, isGameOver) {
+  oTitle.textContent = title;
+  oMsg.textContent   = msg;
+  overlay.classList.add('show');
+}
+function hideOverlay() {
+  overlay.classList.remove('show');
+}
+overlay.addEventListener('click', e => {
+  if (e.target === overlay) hideOverlay();
+});
+
+const winOverlay = document.getElementById('win-overlay');
+function showWinOverlay() {
+  winOverlay.classList.add('show');
+}
+function hideWinOverlay() {
+  winOverlay.classList.remove('show');
+}
+winOverlay.addEventListener('click', e => {
+  if (e.target === winOverlay) hideWinOverlay();
+});
+
+/* New game confirmation modal */
+const confirmOverlay = document.getElementById('confirm-overlay');
+function confirmNewGame() {
+  confirmOverlay.classList.add('show');
+}
+function hideConfirm() {
+  confirmOverlay.classList.remove('show');
+}
+confirmOverlay.addEventListener('click', e => {
+  if (e.target === confirmOverlay) hideConfirm();
+});
+
+/* =============================================
+   KEYBOARD INPUT
+   ============================================= */
+const KEY_MAP = {
+  ArrowLeft: 0, a: 0, A: 0,
+  ArrowDown: 1, s: 1, S: 1,
+  ArrowRight:2, d: 2, D: 2,
+  ArrowUp:   3, w: 3, W: 3,
+};
+document.addEventListener('keydown', e => {
+  if (e.key in KEY_MAP) {
+    e.preventDefault();           // prevent page scroll
+    move(KEY_MAP[e.key]);
+  }
+});
+
+/* =============================================
+   TOUCH / SWIPE INPUT
+   Records touch start and calculates swipe direction on end
+   ============================================= */
+let touchStartX = 0;
+let touchStartY = 0;
+
+document.addEventListener('touchstart', e => {
+  touchStartX = e.touches[0].clientX;
+  touchStartY = e.touches[0].clientY;
+}, { passive: true });
+
+document.addEventListener('touchend', e => {
+  const dx = e.changedTouches[0].clientX - touchStartX;
+  const dy = e.changedTouches[0].clientY - touchStartY;
+
+  // Ignore tiny taps
+  if (Math.abs(dx) < 20 && Math.abs(dy) < 20) return;
+
+  if (Math.abs(dx) > Math.abs(dy)) {
+    // Horizontal swipe
+    move(dx < 0 ? 0 : 2);  // left : right
+  } else {
+    // Vertical swipe
+    move(dy > 0 ? 1 : 3);  // down : up
+  }
+}, { passive: true });
+
+/* =============================================
+   START!
+   ============================================= */
+init();
+
+/* =============================================
+   SNOW PARTICLES  — glimmering ice crystals
+   Each flake has its own shimmer cycle so they
+   twinkle independently as they drift down.
+   Some render as tiny cross/star shapes to catch
+   the eye like a real ice crystal in sunlight.
+   ============================================= */
+(function() {
+  const canvas = document.getElementById('snow-canvas');
+  const ctx    = canvas.getContext('2d');
+
+  const FLAKE_COUNT = 42;
+  let flakes = [];
+  let W, H;
+
+  function resize() {
+    W = canvas.width  = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  function makeFlake(randomY) {
+    return {
+      x:          Math.random() * W,
+      y:          randomY ? Math.random() * H : -6,
+      r:          Math.random() * 1.8 + 0.6,   // 0.6–2.4px
+      speed:      Math.random() * 0.35 + 0.12, // very slow
+      drift:      (Math.random() - 0.5) * 0.25,
+      wobble:     Math.random() * Math.PI * 2,  // x-axis sine phase
+      // shimmer: each flake has its own phase + speed so they
+      // twinkle out of sync with each other
+      shimmerPhase: Math.random() * Math.PI * 2,
+      shimmerSpeed: Math.random() * 0.04 + 0.015, // slow glimmer
+      baseOpacity:  Math.random() * 0.25 + 0.08,  // 8–33% base
+      shimmerAmp:   Math.random() * 0.35 + 0.15,  // how bright the glimmer peak gets
+      shape: 0, // circles only
+      rotation:   Math.random() * Math.PI,        // random crystal rotation
+      rotSpeed:   (Math.random() - 0.5) * 0.005,  // very slow rotation
+    };
+  }
+
+  for (let i = 0; i < FLAKE_COUNT; i++) flakes.push(makeFlake(true));
+
+  /* Draw a 4-point cross crystal */
+  function drawCross(x, y, r, rotation) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(rotation);
+    const arm = r * 2.2;
+    const w   = r * 0.55;
+    ctx.beginPath();
+    ctx.rect(-w, -arm, w * 2, arm * 2); // vertical bar
+    ctx.rect(-arm, -w, arm * 2, w * 2); // horizontal bar
+    ctx.fill();
+    ctx.restore();
+  }
+
+  /* Draw a 6-point star crystal (two overlapping triangles) */
+  function drawStar(x, y, r, rotation) {
+    ctx.save();
+    ctx.translate(x, y);
+    for (let i = 0; i < 3; i++) {
+      ctx.rotate(i === 0 ? rotation : Math.PI / 3);
+      const arm = r * 2.4;
+      const w   = r * 0.45;
+      ctx.beginPath();
+      ctx.rect(-w, -arm, w * 2, arm * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+
+    flakes.forEach(f => {
+      // Move
+      f.wobble       += 0.007;
+      f.shimmerPhase += f.shimmerSpeed;
+      f.rotation     += f.rotSpeed;
+      f.x += f.drift + Math.sin(f.wobble) * 0.28;
+      f.y += f.speed;
+
+      // Wrap
+      if (f.y > H + 6) { Object.assign(f, makeFlake(false)); return; }
+      if (f.x > W + 6) f.x = -6;
+      if (f.x < -6)    f.x = W + 6;
+
+      // Glimmer: sine wave between baseOpacity and baseOpacity + shimmerAmp
+      // Math.pow pushes the bright peaks to be sharp flashes, not slow fades
+      const sine    = (Math.sin(f.shimmerPhase) + 1) / 2; // 0–1
+      const glimmer = Math.pow(sine, 2.5);                 // sharpen the peak
+      const opacity = f.baseOpacity + glimmer * f.shimmerAmp;
+
+      ctx.fillStyle = `rgba(255,255,255,${Math.min(opacity, 0.88)})`;
+
+      if (f.shape === 0) {
+        // Soft circle — slightly blurred look via shadow
+        ctx.shadowColor = `rgba(255,255,255,${opacity * 0.6})`;
+        ctx.shadowBlur  = f.r * 2;
+        ctx.beginPath();
+        ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      } else if (f.shape === 1) {
+        ctx.shadowColor = `rgba(255,255,255,${opacity * 0.5})`;
+        ctx.shadowBlur  = f.r * 3;
+        drawCross(f.x, f.y, f.r, f.rotation);
+        ctx.shadowBlur = 0;
+      } else {
+        ctx.shadowColor = `rgba(255,255,255,${opacity * 0.5})`;
+        ctx.shadowBlur  = f.r * 3;
+        drawStar(f.x, f.y, f.r, f.rotation);
+        ctx.shadowBlur = 0;
+      }
+    });
+
+    requestAnimationFrame(draw);
+  }
+
+  draw();
+})();
+
+
+/* =============================================
+   VIEWPORT SCALER
+   Scales #game-wrap so the whole game fits
+   within the visible viewport with no cropping.
+   Scales from center so title and bottom both
+   shrink inward equally.
+   ============================================= */
+function scaleGame() {
+  const wrap = document.getElementById('game-wrap');
+  if (!wrap) return;
+
+  // Reset so we can measure the natural (unscaled) size
+  wrap.style.transform = 'none';
+
+  const vw  = window.innerWidth;
+  const vh  = window.innerHeight;
+  const ww  = wrap.offsetWidth;
+  const wh  = wrap.offsetHeight;
+
+  // Fit within viewport with a small margin on each side
+  const margin = 24;
+  const scaleX = Math.min(1, (vw - margin) / ww);
+  const scaleY = Math.min(1, (vh - margin) / wh);
+  const scale  = Math.min(scaleX, scaleY);
+
+  wrap.style.transform = `scale(${scale})`;
+}
+
+window.addEventListener('resize', scaleGame);
+window.addEventListener('load',   scaleGame);
+setTimeout(scaleGame, 150); // wait for fonts/images
+
+</script>
+</body>
+</html>
