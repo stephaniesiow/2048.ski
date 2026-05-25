@@ -3,6 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <!-- iOS fullscreen / PWA tags -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#7ab8e0">
 <title>Skis & Scores 2048</title>
 <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -35,6 +40,7 @@
     width: 100%;
     height: 100%;
     overflow: hidden;
+    background-color: #7ab8e0; /* fills any gap the browser chrome creates */
   }
 
   body {
@@ -461,18 +467,16 @@
   }
 
   /* =============================================
-     SNOW CANVAS — sits behind everything
+     SNOW CANVAS — sits above bg, below game
      ============================================= */
   #snow-canvas {
     position: fixed;
-    inset: 0;
+    top: 0; left: 0;
     width: 100%;
     height: 100%;
     pointer-events: none;
     z-index: 0;
   }
-  /* Push all page content above the snow canvas */
-  body > *:not(#snow-canvas) { position: relative; z-index: 1; }
 </style>
 </head>
 <body>
