@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>2048.ski</title>
+<title>Skis & Scores 2048</title>
 <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
   /* =============================================
@@ -29,46 +29,44 @@
 
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-  html {
+  html, body {
+    margin: 0;
+    padding: 0;
     width: 100%;
     height: 100%;
-    background: url('background.png') center center / cover no-repeat;
-    background-color: #7ab8e0; /* fallback sky blue if image hasn't loaded */
+    overflow: hidden;
   }
 
   body {
     font-family: 'Lexend', sans-serif;
-    background: url('background.png') center center / cover no-repeat;
-    background-attachment: scroll; /* fixed doesn't work on iOS */
-    width: 100vw;
-    height: 100dvh;
-    min-height: -webkit-fill-available; /* iOS Safari fallback */
-    overflow: hidden;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin: 0;
-    padding: 0;
-    /* fill notch/safe areas with the background */
-    padding-top: env(safe-area-inset-top);
-    padding-bottom: env(safe-area-inset-bottom);
     /* prevent text selection and tap highlights on mobile */
     -webkit-user-select: none;
     user-select: none;
     -webkit-tap-highlight-color: transparent;
     -webkit-touch-callout: none;
   }
-  /* When scaled down, the transform collapses visual size but not
-     layout size — this wrapper absorbs that so body stays centered */
+
+  /* Full-bleed background on a fixed layer behind everything —
+     this is the most reliable cross-browser/iOS approach */
+  #bg {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: url('background.png') center center / cover no-repeat;
+    background-color: #7ab8e0;
+    z-index: -1;
+  }
+
+  /* Outer centering shell — also fixed to fill the true viewport */
   #scale-outer {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 100vw;
-    height: 100dvh;
-    overflow: hidden;
-    position: fixed;
-    top: 0; left: 0;
+    z-index: 1;
   }
 
   /* =============================================
@@ -480,6 +478,7 @@
 <body>
 
 <!-- Snow particle canvas -->
+<div id="bg"></div>
 <canvas id="snow-canvas"></canvas>
 
 <div id="scale-outer"><div id="game-wrap">
