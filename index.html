@@ -36,6 +36,11 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    /* prevent text selection and tap highlights on mobile */
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
   }
   /* When scaled down, the transform collapses visual size but not
      layout size — this wrapper absorbs that so body stays centered */
