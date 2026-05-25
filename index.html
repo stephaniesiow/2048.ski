@@ -40,7 +40,9 @@
     width: 100%;
     height: 100%;
     overflow: hidden;
-    background-color: #7ab8e0;
+    background: #7ab8e0;
+    border: none;
+    outline: none;
   }
 
   body {
@@ -57,10 +59,13 @@
   #bg {
     position: fixed;
     top: 0; left: 0;
-    width: 100%; height: 100%;
+    right: 0; bottom: 0;
+    width: 100vw;
+    height: 100vh;
+    min-height: -webkit-fill-available;
     background: url('background.png') center center / cover no-repeat;
     background-color: #7ab8e0;
-    z-index: 0;  /* above html bg, below snow and game */
+    z-index: 0;
   }
 
   /* Outer centering shell — also fixed to fill the true viewport */
