@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <!-- iOS fullscreen / PWA tags -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1223,6 +1223,16 @@ document.addEventListener('keydown', e => {
     move(KEY_MAP[e.key]);
   }
 });
+
+/* =============================================
+   BLOCK DOUBLE-TAP ZOOM (mobile)
+   ============================================= */
+let lastTap = 0;
+document.addEventListener('touchend', e => {
+  const now = Date.now();
+  if (now - lastTap < 300) e.preventDefault(); // block double-tap zoom
+  lastTap = now;
+}, { passive: false });
 
 /* =============================================
    TOUCH / SWIPE INPUT
