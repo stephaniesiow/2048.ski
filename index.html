@@ -881,7 +881,7 @@ function gridsEqual(a, b) {
  * direction: 0=left, 1=down, 2=right, 3=up
  */
 function move(direction) {
-  if (gameOver) return;
+  if (gameOver || activeMode) return;
 
   // Push current state onto undo stack (keep max 2 snapshots)
   undoStack.push({ grid: copyGrid(grid), score });
@@ -1141,7 +1141,6 @@ function handlePowerupClick(r, c) {
 
     powerups.delete.uses--;
     cancelPowerupMode();
-    spawnTile();   // reward a fresh tile after clearing
     render();
 
   } else if (activeMode === 'swap') {
