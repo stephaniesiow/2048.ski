@@ -625,6 +625,20 @@ const TILE_DATA = {
 };
 
 /* =============================================
+   PRELOAD TILE IMAGES
+   Creates hidden Image objects for every tile so the
+   browser fetches and caches them all before any tile
+   appears on the board — eliminates the flash on first use.
+   ============================================= */
+(function preloadTiles() {
+  Object.values(TILE_DATA).forEach(({ img }) => {
+    if (!img) return;
+    const image = new Image();
+    image.src = img;
+  });
+})();
+
+/* =============================================
    GAME STATE
    ============================================= */
 const SIZE = 4;                  // 4×4 grid
